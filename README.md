@@ -1,116 +1,72 @@
-# Aurora DSQL with Drizzle ORM
+# Aurora DSQL × Drizzle ORM サンプル
 
-This sample demonstrates using [Drizzle ORM](https://orm.drizzle.team/) with [Amazon Aurora DSQL](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html).
+[Drizzle ORM](https://orm.drizzle.team/) から [Amazon Aurora DSQL](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html) を利用するサンプルです。型安全なクエリ、DSQL 対応のマイグレーション、動作確認用の管理画面を含みます。
 
-## Prerequisites
+AWS Database Blog の [Building type-safe applications with Drizzle ORM in Aurora DSQL](https://aws.amazon.com/jp/blogs/database/building-type-safe-applications-with-drizzle-orm-in-aurora-dsql/) を参考にしています。
 
-- AWS account with default credentials configured ([setup guide](https://docs.aws.amazon.com/credref/latest/refdocs/creds-config-files.html))
-- [Node.js 20+](https://nodejs.org)
-- An Aurora DSQL cluster ([getting started guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/getting-started.html))
+## 前提条件
 
-## Quick Start
+- 既定の認証情報が設定済みの AWS アカウント（[設定ガイド](https://docs.aws.amazon.com/credref/latest/refdocs/creds-config-files.html)）
+- [Node.js 20 以上](https://nodejs.org)
+- Aurora DSQL クラスタ（[入門ガイド](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/getting-started.html)）
 
-### Install dependencies
+## クイックスタート
 
-```
+```bash
 npm install
+
+cp .env.example .env      # クラスタのエンドポイントを記入する
+npm run sample            # マイグレーション適用 + サンプル実行
 ```
 
-### Set environment variables
+管理画面を使う場合は、ターミナルを 2 つ用意します。
 
-```
-export CLUSTER_USER="admin"
-export CLUSTER_ENDPOINT="your-cluster.dsql.us-east-1.on.aws"
-```
-
-### Build and run the sample
-
-```
-npm run build
-npm run sample
+```bash
+npm run api               # CRUD API      http://localhost:3000
+npm run web               # 管理画面      http://localhost:5173
 ```
 
-## About the Sample
+## ドキュメント
 
-The sample uses the [Aurora DSQL Connector](https://github.com/awslabs/aurora-dsql-connectors/tree/main/node) for automatic IAM authentication and connection pooling. It demonstrates:
+| ドキュメント                                               | 内容                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| [docs/setup.md](docs/setup.md)                             | 環境変数、マイグレーション、起動手順、トラブルシューティング |
+| [docs/architecture.md](docs/architecture.md)               | 全体構成、モジュール責務、リクエストの流れ                   |
+| [docs/api.md](docs/api.md)                                 | 管理画面用 CRUD API の仕様                                   |
+| [docs/aurora-dsql-drizzle.md](docs/aurora-dsql-drizzle.md) | Aurora DSQL 固有の制約と Drizzle での対処                    |
 
-- Connecting to Aurora DSQL using Drizzle ORM with IAM authentication
-- Applying database migrations using a custom DSQL-compatible migration runner
-- CRUD operations using Drizzle's type-safe query builder
-- Managing relationships (owners, pets, veterinarians, specialties)
+## スクリプト
 
-The sample works with both admin and non-admin users:
+| コマンド                   | 説明                                                       |
+| -------------------------- | ---------------------------------------------------------- |
+| `npm run sample`           | マイグレーションを適用し、サンプルコードを実行する         |
+| `npm run api`              | 管理画面用の CRUD API を起動する（既定 3000 番）           |
+| `npm run web`              | Vite 開発サーバーで管理画面を起動する（既定 5173 番）      |
+| `npm run migrate:generate` | スキーマから SQL マイグレーションを生成する（DB 接続不要） |
+| `npm run build`            | TypeScript をビルドする                                    |
+| `npm test`                 | 結合テストを実行する（クラスタが必要）                     |
+| `npm run format`           | Prettier で整形する                                        |
 
-- **Admin user**: Uses the `public` schema
-- **Non-admin user**: Uses the `myschema` schema
-
-### Usage
-
-```typescript
-import { createDsqlClient } from "./dsql-client";
-
-const { db, pool } = createDsqlClient();
-
-// Use Drizzle as normal
-const owners = await db.query.owner.findMany();
-
-// Clean up
-await pool.end();
-```
-
-## Drizzle ORM with Aurora DSQL
-
-When using Drizzle ORM with Aurora DSQL:
-
-1. **Use UUID for IDs** — Aurora DSQL supports [sequences and identity columns](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/sequences-identity-columns.html) (with `CACHE` specified), but UUIDs with `gen_random_uuid()` are the [recommended default](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/sequences-identity-columns-working-with.html) for primary keys because they distribute writes evenly across the distributed system:
-
-   ```typescript
-   import { pgTable, uuid } from "drizzle-orm/pg-core";
-   import { sql } from "drizzle-orm";
-
-   export const owner = pgTable("owner", {
-       id: uuid().primaryKey().default(sql`gen_random_uuid()`),
-   });
-   ```
-
-2. **Application-layer referential integrity** — This sample uses Drizzle's `relations()` API for relationship handling:
-
-   ```typescript
-   import { relations } from "drizzle-orm";
-
-   export const petRelations = relations(pet, ({ one }) => ({
-       owner: one(owner, {
-           fields: [pet.ownerId],
-           references: [owner.id],
-       }),
-   }));
-   ```
-
-3. **Custom migration runner** — Drizzle's built-in `migrate()` creates its tracking table using `SERIAL`, which is not available in Aurora DSQL. This sample includes a custom migration runner (`src/migrate.ts`) that uses UUID primary keys instead:
-
-   ```typescript
-   import { applyMigrations } from "./migrate";
-
-   await applyMigrations(pool, "./drizzle");
-   ```
-
-4. **Generate migrations offline** — Use `drizzle-kit generate` to create SQL migration files from your schema (no database connection required):
-
-   ```
-   npm run migrate:generate
-   ```
-
-## Tests
-
-Run the integration tests (requires a DSQL cluster):
+## ディレクトリ構成
 
 ```
-npm test
+src/
+  schema.ts       Drizzle スキーマ定義（テーブルとリレーション）
+  dsql-client.ts  IAM 認証付きの接続プールと Drizzle クライアント生成
+  migrate.ts      DSQL 対応の自前マイグレーションランナー
+  example.ts      CRUD とリレーションのサンプルコード
+  index.ts        サンプルのエントリポイント
+  server.ts       管理画面用 CRUD API
+  utils.ts        環境変数の取得
+web/              管理画面（React + Vite）
+drizzle/          生成された SQL マイグレーション
+test/             結合テスト
+docs/             ドキュメント
 ```
 
-## Cleanup
+## クリーンアップ
 
-To remove the database tables, connect to your cluster and run:
+テーブルを削除するには、クラスタに接続して以下を実行します。
 
 ```sql
 DROP TABLE IF EXISTS "__drizzle_migrations";
@@ -121,14 +77,13 @@ DROP TABLE IF EXISTS "specialty";
 DROP TABLE IF EXISTS "vet";
 ```
 
-## Additional Resources
+## 参考リンク
 
-- [Amazon Aurora DSQL Documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html)
-- [Sequences and identity columns in Aurora DSQL](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/sequences-identity-columns.html)
-- [Migrating from PostgreSQL to Aurora DSQL](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html)
+- [Amazon Aurora DSQL ドキュメント](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html)
+- [Aurora DSQL のシーケンスと ID 列](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/sequences-identity-columns.html)
+- [PostgreSQL から Aurora DSQL への移行ガイド](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html)
 - [Aurora DSQL Node.js Connector](https://github.com/awslabs/aurora-dsql-connectors/tree/main/node)
-- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview)
-- [Drizzle ORM PostgreSQL Guide](https://orm.drizzle.team/docs/get-started-postgresql)
+- [Drizzle ORM ドキュメント](https://orm.drizzle.team/docs/overview)
 
 ---
 

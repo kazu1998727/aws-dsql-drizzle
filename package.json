@@ -7,7 +7,9 @@
         "format:check": "prettier --check .",
         "migrate:generate": "drizzle-kit generate",
         "build": "tsc",
-        "sample": "tsx src/index.ts",
+        "sample": "tsx --env-file-if-exists=.env src/index.ts",
+        "api": "tsx --env-file-if-exists=.env src/server.ts",
+        "web": "vite",
         "pretest": "npm run build",
         "test": "NODE_OPTIONS='--experimental-vm-modules' jest"
     },
@@ -15,18 +17,23 @@
         "@types/jest": "^30.0.0",
         "@types/node": "^25.5.0",
         "@types/pg": "^8.20.0",
+        "@types/react": "^19.2.18",
+        "@types/react-dom": "^19.2.4",
         "drizzle-kit": "^0.31.10",
         "jest": "^30.3.0",
         "prettier": "^3.8.1",
         "ts-jest": "^29.4.6",
         "tsx": "^4.21.0",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "vite": "^8.2.1"
     },
     "dependencies": {
         "@aws-sdk/dsql-signer": "^3.1017.0",
         "@aws/aurora-dsql-node-postgres-connector": "^0.1.8",
         "drizzle-orm": "^0.45.2",
-        "pg": "^8.20.0"
+        "pg": "^8.20.0",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8"
     },
     "overrides": {
         "fast-xml-parser": ">=5.5.6"
